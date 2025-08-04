@@ -7,7 +7,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 # IMPORTANT: Change this to a strong, random key in production!
-app.secret_key = secrets.token_hex(16) 
+import os
+app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
 socketio = SocketIO(app)
 
 # Global data stores
