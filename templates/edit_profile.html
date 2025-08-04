@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Your Profile</title>
+</head>
+<body>
+    <h2>Edit Your Profile</h2>
+    <form method="POST" action="/profile/edit">
+        <div>
+            <label for="bio">Bio:</label><br>
+            <textarea id="bio" name="bio" rows="5" cols="50">{{ user.bio }}</textarea>
+        </div>
+        <br>
+        <div>
+            <label for="interests">Interests:</label><br>
+            <textarea id="interests" name="interests" rows="3" cols="50">{{ user.interests }}</textarea>
+        </div>
+        <br>
+        <button type="submit">Save Changes</button>
+        <p><a href="/profile">Back to Your Profile</a></p>
+    </form>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Your Profile</title>
+</head>
+<body>
+    <h2>Your Profile</h2>
+    {% if user %}
+        <p><strong>Username:</strong> {{ username }}</p>
+        <p><strong>Bio:</strong> {{ user.bio if user.bio else 'No bio added yet.' }}</p>
+        <p><strong>Interests:</strong> {{ user.interests if user.interests else 'No interests added yet.' }}</p>
+        <p><a href="/dashboard">Back to Dashboard</a></p>
+        <p><a href="/profile/edit">Edit Profile</a></p>     
+    {% else %}
+        <p>Error loading profile information.</p>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Chat App</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
+        #chat-container { display: flex; width: 100%; }
+        #sidebar { width: 200px; background-color: #f0f2f5; padding: 10px; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #sidebar h3 { margin-top: 0; font-size: 1.1em; color: #333; }
+        #online-users { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex-grow: 1; }
+        #online-users li { padding: 5px 0; border-bottom: 1px solid #eee; display: flex; align-items: center;} /* Use flex for alignment */
+        #online-users li .online-user-item { cursor: pointer; color: #007bff; flex-grow: 1; } /* Make clickable and take space */
+        #online-users li:hover { background-color: #e9e9e9; }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+            display: inline-block;
+            flex-shrink: 0; /* Prevent dot from shrinking */
+        }
+        .status-online { background-color: green; }
+        .status-in-call { background-color: orange; }
+        #main-chat-area { flex-grow: 1; display: flex; flex-direction: column; }
+        #messages { flex-grow: 1; overflow-y: auto; padding: 10px; background-color: #fff; border-bottom: 1px solid #eee; }
+        .message { margin-bottom: 8px; }
+        .message strong { color: #333; }
+        .system-message { font-style: italic; color: #6c757d; text-align: center; margin: 10px 0; }
+        .private-message { color: #880088; font-style: italic; } /* Style for private messages */
+
+        #message-input-area { display: flex; padding: 10px; background-color: #f8f9fa; border-top: 1px solid #ddd; }
+        #message-input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-right: 10px; }
+        #send-button { padding: 8px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #send-button:hover { background-color: #0056b3; }
+
+        #call-controls { padding: 10px; background-color: #f0f2f5; border-top: 1px solid #ddd; text-align: center; }
+        #call-controls button { padding: 8px 15px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        #start-call-button { background-color: #28a745; color: white; }
+        #start-call-button:hover { background-color: #218838; }
+        #end-call-button { background-color: #dc3545; color: white; }
+        #end-call-button:hover { background-color: #c82333; }
+
+        /* --- New DM Container Styles --- */
+        #dm-container {
+            width: 300px; /* Adjust as needed */
+            background-color: #f0f2f5;
+            padding: 10px;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Prevent content overflow */
+            position: relative;
+            transform: translateX(100%); /* Start hidden off-screen */
+            transition: transform 0.3s ease-in-out; /* Smooth slide-in/out */
+        }
+        #dm-container.active {
+            transform: translateX(0); /* Slide in */
+        }
+        #dm-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+        #dm-header h3 {
+            margin: 0;
+            font-size: 1.1em;
+            color: #333;
+        }
+        #dm-close-button {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #666;
+        }
+        #dm-close-button:hover {
+            color: #333;
+        }
+        #dm-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 5px;
+            background-color: #fff;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .dm-message-mine {
+            text-align: right;
+            color: #007bff; /* Blue for messages sent by me */
+        }
+        .dm-message-other {
+            text-align: left;
+            color: #333; /* Default for messages from others */
+        }
+        #dm-input-area {
+            display: flex;
+        }
+        #dm-message-input {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        #dm-send-button {
+            padding: 8px 15px;
+            background-color: #17a2b8; /* A different color for DM send */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #dm-send-button:hover {
+            background-color: #138496;
+        }
+
+        /* Video elements for WebRTC */
+        #video-container {
+            position: fixed; /* Or relative to its parent, adjust as needed */
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex; /* Initially hidden */
+            gap: 10px;
+            flex-direction: column;
+            background-color: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        #local-video, #remote-video {
+            width: 160px; /* Smaller video size */
+            height: 120px;
+            background-color: #000;
+            border: 1px solid #444;
+            border-radius: 4px;
+        }
+        #local-video {
+            transform: scaleX(-1); /* Mirror local video */
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="sidebar">
+            <h3>Online Users</h3>
+            <ul id="online-users">
+                </ul>
+        </div>
+
+        <div id="main-chat-area">
+            <div id="messages">
+                </div>
+            <div id="message-input-area">
+                <input type="text" id="message-input" placeholder="Type your message...">
+                <button id="send-button">Send</button>
+            </div>
+            <div id="call-controls">
+                <button id="start-call-button">Start Voice Call</button>
+                <button id="end-call-button" style="display: none;">End Voice Call</button>
+            </div>
+        </div>
+
+        <div id="dm-container">
+            <div id="dm-header">
+                <h3 id="dm-recipient-name">Direct Message with: </h3>
+                <button id="dm-close-button">&times;</button>
+            </div>
+            <div id="dm-messages">
+                </div>
+            <div id="dm-input-area">
+                <input type="text" id="dm-message-input" placeholder="Type private message...">
+                <button id="dm-send-button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="video-container" style="display: none;">
+        <video id="local-video" autoplay muted></video>
+        <video id="remote-video" autoplay></video>
+        <audio id="remote-audio" autoplay style="display:none;"></audio>
+    </div>
+
+    <script>
+        const socket = io();
+
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const onlineUsersList = document.getElementById('online-users');
+
+        const startCallButton = document.getElementById('start-call-button');
+        const endCallButton = document.getElementById('end-call-button');
+
+        // NEW DM Elements
+        const dmContainer = document.getElementById('dm-container');
+        const dmRecipientName = document.getElementById('dm-recipient-name');
+        const dmMessagesDiv = document.getElementById('dm-messages');
+        const dmMessageInput = document.getElementById('dm-message-input');
+        const dmSendButton = document.getElementById('dm-send-button');
+        const dmCloseButton = document.getElementById('dm-close-button');
+
+        // WebRTC Video Elements
+        const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+        const videoContainer = document.getElementById('video-container');
+        const toggleVideoButton = document.createElement('button');
+        toggleVideoButton.textContent = 'Toggle Video';
+        toggleVideoButton.id = 'toggle-video-button';
+        toggleVideoButton.style.display = 'none'; // Initially hidden
+        document.getElementById('call-controls').appendChild(toggleVideoButton); // Add to call controls
+
+toggleVideoButton.addEventListener('click', () => {
+    if (localStream) {
+        const videoTracks = localStream.getVideoTracks();
+        if (videoTracks.length > 0) {
+            videoTracks.forEach(track => {
+                track.enabled = !track.enabled; // Toggle enable/disable
+            });
+            showSystemMessage(`Video ${videoTracks[0].enabled ? 'on' : 'off'}`);
+        } else {
+            showSystemMessage("No video track found in local stream.");
+            // Option: if no video track, try to add one dynamically or alert user
+        }
+    }
+});
+ // Container for both videos
+
+        let localStream;
+        let peerConnection;
+        let currentPeerUsername = null; // Stores the username of the person you are in a call with
+
+        // --- DM Specific Variables ---
+        let activeDMRecipient = null; // Stores the username of the current DM recipient
+        // Stores private message history: { 'username': [{sender: '...', message: '...', is_me: true/false}, ...] }
+        const privateMessageHistory = {}; 
+
+        // --- Utility Functions ---
+        let myUsername = ''; // This will be set by the 'current_user_info' event
+
+        // Function to append messages to the chat area
+        function appendMessage(username, message, isSystem = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            if (isSystem) {
+                messageDiv.classList.add('system-message');
+            }
+
+            const strong = document.createElement('strong');
+            strong.innerHTML = username + ': '; // Use innerHTML to allow HTML in system messages
+            messageDiv.appendChild(strong);
+            messageDiv.appendChild(document.createTextNode(message)); // Use textNode for safety with user messages
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Function to display system messages (replaces alerts)
+        function showSystemMessage(message) {
+            const messageList = document.getElementById('messages');
+            if (!messageList) {
+            console.error("Error: The message list element was not found.");
+            return; // Exit the function if the element doesn't exist
+    }
+            const systemMessageElement = document.createElement('div');
+            systemMessageElement.classList.add('system-message');
+            systemMessageElement.innerHTML = `System: ${message}`;
+            messageList.appendChild(systemMessageElement);
+            messageList.scrollTop = messageList.scrollHeight; // Auto-scroll
+        }
+
+        // NEW: Function to append DM messages to the DM area
+        function appendDMMessage(sender, message, isMe = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            
+            if (isMe) {
+                messageDiv.classList.add('dm-message-mine');
+            } else {
+                messageDiv.classList.add('dm-message-other');
+            }
+
+            const strong = document.createElement('strong');
+            strong.textContent = (isMe ? 'You' : sender) + ': ';
+            messageDiv.appendChild(strong);
+            messageDiv.appendChild(document.createTextNode(message));
+            dmMessagesDiv.appendChild(messageDiv);
+            dmMessagesDiv.scrollTop = dmMessagesDiv.scrollHeight;
+        }
+
+        // --- WebRTC Functions ---
+
+        const servers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                // You can add more STUN/TURN servers for robustness
+            ]
+        };
+
+        async function getLocalMediaStream() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                showSystemMessage("Local audio stream obtained.");
+                localVideo.srcObject = localStream; // It will just be a black box or hidden if no video tracks.
+                videoContainer.style.display = 'flex'; 
+                return true;
+            } catch (error) {
+                console.error('Error getting local media stream:', error);
+                showSystemMessage(`Error accessing mic: ${error.message}. Please allow access.`);
+                return false;
+            }
+        }
+
+        function createPeerConnection() {
+            if (peerConnection) {
+                console.warn("Peer connection already exists. Reinitializing.");
+                cleanupCall(); // Ensure a clean slate
+            }
+
+            peerConnection = new RTCPeerConnection(servers);
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            peerConnection.ontrack = (event) => {
+                if (event.track.kind === 'video') {
+                if (remoteVideo.srcObject !== event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                    showSystemMessage("Remote video stream received.");
+                }
+             } else if (event.track.kind === 'audio') {
+        // Create an Audio element if it doesn't exist or manage the existing one
+        const remoteAudioElement = document.getElementById('remote-audio');
+        if (remoteAudioElement.srcObject !== event.streams[0]) {
+            remoteAudioElement.srcObject = event.streams[0];
+            showSystemMessage("Remote audio stream received. Playback initiated.");
+            // Ensure it's not muted, though autoplay should handle it
+            remoteAudioElement.muted = false; 
+            remoteAudioElement.play().catch(e => console.error("Error playing remote audio:", e));
+        }
+    }
+            };
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    console.log('Sending ICE candidate:', event.candidate);
+                    socket.emit('ice_candidate', {
+                        candidate: event.candidate,
+                        peer: currentPeerUsername
+                    });
+                }
+            };
+
+            peerConnection.oniceconnectionstatechange = () => {
+                console.log('ICE connection state changed:', peerConnection.iceConnectionState);
+                showSystemMessage(`Call status: ${peerConnection.iceConnectionState}`);
+                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
+                    console.warn('ICE connection disconnected or failed. Attempting cleanup.');
+                    // Consider triggering endCall if persistent
+                    if (currentPeerUsername) {
+                        showSystemMessage(`Call with ${currentPeerUsername} disconnected (${peerConnection.iceConnectionState}).`);
+                        // Optionally trigger cleanup or server side end call if state is truly bad
+                    }
+                } else if (peerConnection.iceConnectionState === 'connected') {
+                     showSystemMessage(`Call with ${currentPeerUsername} connected!`);
+                }
+            };
+
+            peerConnection.onsignalingstatechange = () => {
+                console.log('Signaling state changed:', peerConnection.signalingState);
+            };
+        }
+
+        async function initiateCallProcess(isOfferer) {
+            // Ensure we have a local stream before proceeding
+            const streamReady = await getLocalMediaStream();
+            if (!streamReady) {
+                console.error("Cannot initiate call without local media stream.");
+                return;
+            }
+
+            createPeerConnection(); // Always create a fresh peer connection
+
+            if (isOfferer) {
+                try {
+                    showSystemMessage("Creating offer...");
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    console.log('Sending offer:', offer);
+                    socket.emit('offer', { sdp: offer, peer: currentPeerUsername });
+                    showSystemMessage("Offer sent.");
+                } catch (error) {
+                    console.error('Error creating or sending offer:', error);
+                    showSystemMessage(`Error during offer setup: ${error.message}.`);
+                }
+            } else {
+                showSystemMessage("Waiting to receive offer...");
+                // The answerer will create an answer when they receive an offer
+            }
+        }
+
+        function cleanupCall() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+                localVideo.srcObject = null;
+            }
+            if (remoteVideo) {
+                remoteVideo.srcObject = null;
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            videoContainer.style.display = 'none'; // Hide video container
+            endCallButton.style.display = 'none';
+            startCallButton.style.display = 'inline-block';
+            currentPeerUsername = null;
+            showSystemMessage("Call resources cleaned up.");
+        }
+
+
+        socket.on('user_connected_message', function(data) {
+    showSystemMessage(data.message);
+});
+
+socket.on('user_disconnected_message', function(data) {
+    showSystemMessage(data.message);
+});// --- Socket.IO Event Handlers (Continued) ---
+
+        socket.on('load_history', (data) => {
+            data.history.forEach(msg => {
+                appendMessage(msg.username, msg.message);
+            });
+        });
+
+        socket.on('current_user_info', (data) => {
+            myUsername = data.username; // Set myUsername from the server
+            sessionStorage.setItem('username', data.username); // Store it for persistence
+            console.log("Current user set to:", myUsername);
+        });
+
+        socket.on('update_user_list', (data) => {
+            onlineUsersList.innerHTML = ''; // Clear existing list
+            data.users.forEach(user_data => { // CORRECTED: This defines 'user_data' for this loop
+                const li = document.createElement('li');
+                
+                // Only create clickable item if it's not the current user
+                if (user_data.username !== myUsername) {
+                    const statusDot = document.createElement('span');
+                    statusDot.classList.add('status-dot');
+                    if (user_data.status === 'online') {
+                        statusDot.classList.add('status-online');
+                    } else if (user_data.status === 'in_call') {
+                        statusDot.classList.add('status-in-call');
+                    }
+                    li.appendChild(statusDot);
+
+                    const span = document.createElement('span'); // Use a span for clickable part
+                    span.textContent = user_data.username; // CORRECTED: Use user_data.username
+                    span.dataset.username = user_data.username; // Store username for easy access
+                    span.classList.add('online-user-item'); // Add a class for styling/event delegation
+                    li.appendChild(span);
+                    onlineUsersList.appendChild(li);
+                }
+            });
+        });
+
+        socket.on('receive_message', (data) => {
+            appendMessage(data.username, data.message);
+        });
+
+        // NEW: Handle incoming private messages
+        socket.on('receive_private_message', (data) => {
+            const sender = data.sender;
+            const message = data.message;
+             if (sender !== myUsername) {
+        // Store in history
+        if (!privateMessageHistory[sender]) {
+            privateMessageHistory[sender] = [];
+        }
+        privateMessageHistory[sender].push({ sender: sender, message: message, is_me: false });
+
+        // If the DM window for this sender is open, append the message
+        if (activeDMRecipient === sender) {
+            appendDMMessage(sender, message, false);
+        } else {
+            // Optionally show a notification
+            showSystemMessage(`New private message from ${sender}!`);
+        }
+    }
+});
+        socket.on('start_voice_call', (data) => {
+            showSystemMessage(`You have been matched with @${data.peer}. Voice call starting...`);
+            currentPeerUsername = data.peer; // This is the person you will send the offer to
+            startCallButton.style.display = 'none';
+            endCallButton.style.display = 'inline-block';
+            initiateCallProcess(true); // You are the offerer
+        });
+
+        socket.on('offer', async (data) => {
+            // This client is the answerer
+            showSystemMessage(`Received call offer from @${data.sender}.`);
+            currentPeerUsername = data.sender; // This is the person you will send the answer back to
+            startCallButton.style.display = 'none';
+            endCallButton.style.display = 'inline-block';
+
+            // Only create peer connection and get local stream if not already done
+            if (!peerConnection || peerConnection.signalingState === 'closed') { 
+                const streamReady = await getLocalMediaStream();
+                if (!streamReady) return; // Cannot proceed without stream
+                createPeerConnection();
+            } else if (peerConnection.signalingState === 'stable' || peerConnection.signalingState === 'have-remote-offer') {
+                // If already in a call or already received an offer, handle appropriately
+                console.warn("Received offer in unexpected signaling state:", peerConnection.signalingState);
+                // Depending on your app logic, you might want to reject this offer
+                // or assume it's a retransmission and try to process.
+                // For simplicity, we'll try to process assuming it's legitimate.
+            }
+
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                showSystemMessage("Offer set as remote description.");
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                showSystemMessage("Answer created and set as local description.");
+                socket.emit('answer', { sdp: answer, peer: currentPeerUsername });
+                showSystemMessage("Answer sent to server.");
+            } catch (error) {
+                console.error("Error receiving or setting offer:", error);
+                showSystemMessage(`Error during call setup (offer handling): ${error.message}. Please try again.`);
+                if (peerConnection) {
+                    console.error("Current Signaling State:", peerConnection.signalingState);
+                }
+                cleanupCall(); // Clean up on error
+            }
+        });
+
+        socket.on('answer', async (data) => {
+            showSystemMessage(`Received call answer from @${data.sender}.`);
+            try {
+                // This client is the offerer. It must have its local offer already set
+                // and be in 'have-local-offer' state when receiving an answer.
+                if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    showSystemMessage("Answer set as remote description. Call connected!");
+                    if (peerConnection.signalingState === 'stable') {
+                        console.log('PeerConnection is stable after setting remote answer.');
+                    }
+                } else {
+                    console.warn("PeerConnection not in expected state to set answer, or signalingState is incorrect.", peerConnection);
+                    showSystemMessage("Error: Peer connection state mismatch during answer.");
+                    if (peerConnection) {
+                        console.warn("Current Signaling State:", peerConnection.signalingState);
+                    }
+                    cleanupCall(); // Clean up on error
+                }
+            } catch (error) {
+                console.error("Error receiving or setting answer:", error);
+                showSystemMessage(`Error during call setup (answer handling): ${error.message}. Please try again.`);
+                if (error.name === 'InvalidStateError') {
+                    showSystemMessage("This usually means a signaling issue (e.g., trying to set an answer when not expecting one).");
+                }
+                if (peerConnection) {
+                    console.error("Current Signaling State:", peerConnection.signalingState);
+                }
+                cleanupCall(); // Clean up on error
+            }
+        });
+
+        socket.on('ice_candidate', async (data) => {
+            try {
+                if (data.candidate && peerConnection) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    console.log('Added ICE candidate:', data.candidate);
+                }
+            } catch (error) {
+                console.error('Error adding received ICE candidate:', error);
+                // Often this happens if candidate arrives when PC is closed or in wrong state.
+                // Log and ignore if already stable/connected.
+                if (peerConnection && peerConnection.iceConnectionState !== 'connected' && peerConnection.iceConnectionState !== 'completed') {
+                     showSystemMessage(`Error adding ICE candidate: ${error.message}.`);
+                }
+            }
+        });
+
+        socket.on('call_ended_by_peer', (data) => {
+            showSystemMessage(`Call with @${data.peer} has ended unexpectedly.`);
+            cleanupCall();
+        });
+
+
+        // --- Event Listeners ---
+
+        sendButton.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message) {
+                socket.emit('send_message', { message: message });
+                messageInput.value = '';
+            }
+        });
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendButton.click();
+            }
+        });
+
+        startCallButton.addEventListener('click', () => {
+            if (!myUsername) {
+                showSystemMessage("Please wait, connecting to server to get your username...");
+                return;
+            }
+            showSystemMessage("Requesting voice call...");
+            socket.emit('request_voice_call');
+        });
+
+        endCallButton.addEventListener('click', () => {
+            showSystemMessage("Ending voice call...");
+            socket.emit('end_voice_call');
+            cleanupCall();
+        });
+
+        // NEW: DM sidebar event listeners
+        onlineUsersList.addEventListener('click', (event) => {
+            const clickedElement = event.target.closest('.online-user-item');
+            if (clickedElement) {
+                const username = clickedElement.dataset.username;
+                if (username && username !== myUsername) {
+                    openDirectMessageChat(username);
+                }
+            }
+        });
+
+        dmCloseButton.addEventListener('click', () => {
+            closeDirectMessageChat();
+        });
+
+        dmSendButton.addEventListener('click', () => {
+            const message = dmMessageInput.value.trim();
+            if (message && activeDMRecipient) {
+                socket.emit('send_private_message', { recipient: activeDMRecipient, message: message });
+                appendDMMessage(myUsername, message, true);
+                // Store in history
+                if (!privateMessageHistory[activeDMRecipient]) {
+                    privateMessageHistory[activeDMRecipient] = [];
+                }
+                privateMessageHistory[activeDMRecipient].push({ sender: myUsername, message: message, is_me: true });
+                dmMessageInput.value = '';
+            }
+        });
+
+        dmMessageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                dmSendButton.click();
+            }
+        });
+
+        // NEW: Function to open/display the DM chat for a specific user
+        function openDirectMessageChat(username) {
+            activeDMRecipient = username;
+            dmRecipientName.textContent = `Direct Message with: ${username}`;
+            dmMessagesDiv.innerHTML = ''; // Clear previous messages
+
+            // Load history for this user if available
+            if (privateMessageHistory[username]) {
+                privateMessageHistory[username].forEach(msg => {
+                    appendDMMessage(msg.sender, msg.message, msg.is_me);
+                });
+            }
+            dmContainer.classList.add('active'); // Show the DM container
+            dmMessagesDiv.scrollTop = dmMessagesDiv.scrollHeight; // Scroll to bottom
+            dmMessageInput.focus();
+        }
+
+        // NEW: Function to close/hide the DM chat
+        function closeDirectMessageChat() {
+            activeDMRecipient = null;
+            dmContainer.classList.remove('active'); // Hide the DM container
+            dmMessagesDiv.innerHTML = ''; // Clear messages
+        }
+
+    </script>
+</body>
+</html>
