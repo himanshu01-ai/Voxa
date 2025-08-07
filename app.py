@@ -115,19 +115,7 @@ def login():
             return "Invalid username or password."
     return render_template('login.html')
 
-# Removed dashboard route as 'chat' serves as the main logged-in landing page
-# @app.route('/dashboard')
-# def dashboard():
-#     if 'username' in session:
-#         username = session['username']
-#         user_data = users.get(username)
-#         if user_data:
-#             bio = user_data.get('bio', 'No bio available.')
-#             return f"Logged in as {username}! Welcome to your dashboard.<br>Your bio: {bio}"
-#         else:
-#             return "Error: User data not found."
-#     else:
-#         return "Please log in to access this page."
+
 
 @app.route('/profile')
 def profile():
@@ -160,18 +148,12 @@ def edit_profile():
     
     return render_template('edit_profile.html', user=user_data)
 
-# @app.route('/profile/edit', methods=['POST']) # This route is merged into edit_profile
-# def update_profile():
-#     pass
-
 
 @app.route('/chat')
 def chat():
     if 'username' in session:
         response = make_response(render_template('chat.html'))
-        # Adjust Content-Security-Policy if you are getting errors related to scripts or styles.
-        # 'unsafe-inline' is generally discouraged but often necessary for simple Flask templates with inline JS/CSS.
-        # For WebRTC, ensure 'connect-src' includes 'self' and 'ws://*' for WebSocket, and potentially 'blob:' for media streams.
+
         response.headers['Content-Security-Policy'] = "default-src 'self'; connect-src 'self' ws://* blob:; script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
         return response
     else:

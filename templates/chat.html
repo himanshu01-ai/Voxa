@@ -3,677 +3,504 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Chat App</title>
+    <title>Voxa Chat</title>
+    <!-- Tailwind CSS for a modern, responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-blue': '#4F46E5',
+                        'dark-bg': '#1E293B',
+                        'light-bg': '#F1F5F9',
+                        'dark-card': '#334155',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Socket.IO for real-time communication -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
-   <style>
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #f0f2f5;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-    }
-
-    #chat-container {
-        display: flex;
-        width: 90%;
-        max-width: 1200px;
-        height: 80vh;
-        max-height: 800px;
-        background-color: #fff;
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-    }
-
-    #sidebar {
-        width: 250px;
-        background-color: #e9ecef;
-        padding: 20px;
-        border-right: 1px solid #dee2e6;
-        display: flex;
-        flex-direction: column;
-    }
-
-    #sidebar h3 {
-        margin-top: 0;
-        color: #333;
-    }
-
-    #online-users {
-        list-style-type: none;
-        padding: 0;
-        margin-bottom: 20px;
-        overflow-y: auto;
-    }
-
-    #online-users li {
-        padding: 10px;
-        border-radius: 5px;
-        margin-bottom: 5px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-
-    #online-users li:hover {
-        background-color: #d1d5d9;
-    }
-
-    .status-online {
-        color: green;
-    }
-
-    .status-in-call {
-        color: red;
-        font-style: italic;
-    }
-
-    #voice-call-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        margin-top: auto; /* Pushes the buttons to the bottom */
-    }
-
-    #voice-call-buttons button {
-        padding: 10px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 14px;
-        color: #fff;
-    }
-
-    #request-call-btn {
-        background-color: #28a745;
-    }
-
-    #end-call-btn {
-        background-color: #dc3545;
-        display: none; /* Hide by default */
-    }
-
-    #chat-area {
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-    }
-
-    #message-history {
-        flex-grow: 1;
-        padding: 20px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column-reverse; /* New: To show latest messages at the bottom */
-    }
-
-    .message {
-        display: flex;
-        margin-bottom: 10px;
-    }
-
-    .message-content {
-        padding: 10px 15px;
-        border-radius: 20px;
-        max-width: 60%;
-    }
-
-    .public-message {
-        background-color: #e9ecef;
-        align-self: flex-start;
-    }
+    <!-- Phosphor Icons for a clean icon set -->
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1/dist/phosphor.js"></script>
     
-    .private-message {
-        background-color: #cce5ff;
-        align-self: flex-start;
-    }
-    
-    .my-message {
-        background-color: #007bff;
-        color: #fff;
-        align-self: flex-end;
-    }
-
-    .message-username {
-        font-weight: bold;
-        margin-bottom: 5px;
-        display: block;
-    }
-
-    .status-message {
-        text-align: center;
-        color: #6c757d;
-        font-style: italic;
-        margin: 10px 0;
-    }
-
-    #message-form {
-        display: flex;
-        padding: 15px 20px;
-        border-top: 1px solid #dee2e6;
-    }
-
-    #message-input {
-        flex-grow: 1;
-        padding: 10px;
-        border-radius: 20px;
-        border: 1px solid #ced4da;
-        outline: none;
-    }
-
-    #message-form button {
-        margin-left: 10px;
-        padding: 10px 20px;
-        background-color: #007bff;
-        color: #fff;
-        border: none;
-        border-radius: 20px;
-        cursor: pointer;
-    }
-
-    #private-chat-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        display: none;
-        justify-content: center;
-        align-items: center;
-    }
-
-    #private-chat-window {
-        background: #fff;
-        border-radius: 10px;
-        width: 90%;
-        max-width: 600px;
-        height: 70%;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-    
-    #private-chat-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 15px 20px;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    #private-chat-header h4 {
-        margin: 0;
-    }
-
-    #close-private-chat {
-        background: none;
-        border: none;
-        font-size: 20px;
-        cursor: pointer;
-    }
-
-    #private-message-history {
-        flex-grow: 1;
-        padding: 20px;
-        overflow-y: auto;
-    }
-    
-    #private-message-form {
-        display: flex;
-        padding: 15px 20px;
-        border-top: 1px solid #e9ecef;
-    }
-
-    #private-message-input {
-        flex-grow: 1;
-        padding: 10px;
-        border-radius: 20px;
-        border: 1px solid #ced4da;
-    }
-
-    #private-message-form button {
-        margin-left: 10px;
-        padding: 10px 20px;
-        background-color: #007bff;
-        color: #fff;
-        border: none;
-        border-radius: 20px;
-        cursor: pointer;
-    }
-
-    #voice-call-section {
-        position: absolute;
-        bottom: 20px;
-        left: 20px;
-        background: #fff;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        display: none; /* Hidden by default */
-    }
-    
-    #status-display {
-        font-weight: bold;
-        color: #333;
-        margin-bottom: 10px;
-    }
-
-    /* WEBRTC Video Call CSS */
-    #video-call-modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.8);
-        display: none;
-        justify-content: center;
-        align-items: center;
-    }
-
-    #video-container {
-        position: relative;
-        width: 90%;
-        height: 90%;
-        max-width: 1200px;
-        max-height: 800px;
-        background-color: #000;
-        border-radius: 10px;
-        overflow: hidden;
-    }
-
-    #local-video {
-        position: absolute;
-        bottom: 20px;
-        right: 20px;
-        width: 200px;
-        height: 150px;
-        border: 2px solid white;
-        z-index: 10;
-        border-radius: 10px;
-    }
-
-    #remote-video {
-        width: 100%;
-        height: 100%;
-        background-color: #333;
-    }
-
-    #call-controls {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 20px;
-        z-index: 20;
-    }
-
-    #call-controls button {
-        background-color: #f44336;
-        color: white;
-        border: none;
-        padding: 15px 25px;
-        border-radius: 50px;
-        cursor: pointer;
-        font-size: 16px;
-    }
-
-    /* ========================================= */
-    /* ======== MOBILE RESPONSIVE STYLES ======= */
-    /* ========================================= */
-    @media (max-width: 768px) {
+    <style>
+        /* Custom CSS for a better aesthetic and to override some Tailwind defaults */
         body {
-            /* No need for min-height, as mobile height is dynamic */
-            align-items: flex-start;
+            @apply bg-light-bg text-gray-800 font-sans;
+        }
+        .chat-panel {
+            @apply fixed inset-y-0 right-0 w-full bg-white shadow-lg transform translate-x-full transition-transform duration-300 ease-in-out;
+        }
+        .chat-panel.active {
+            @apply transform translate-x-0;
+        }
+        .message-history {
+            @apply flex-grow overflow-y-auto flex flex-col-reverse p-4 space-y-2;
+        }
+        .message-bubble {
+            @apply max-w-lg p-3 rounded-2xl shadow-md transition-transform duration-200 ease-in-out;
+        }
+        .my-message-bubble {
+            @apply bg-primary-blue text-white self-end rounded-br-none;
+        }
+        .other-message-bubble {
+            @apply bg-gray-200 text-gray-800 self-start rounded-bl-none;
+        }
+        .system-message {
+            @apply text-center text-gray-500 italic text-sm my-2;
+        }
+        .overlay {
+            @apply fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 transition-opacity duration-300 z-50;
+        }
+        .modal-content {
+            @apply bg-white rounded-xl shadow-2xl p-6 w-full max-w-xl transition-transform duration-300 scale-95;
+            max-height: 90vh;
+        }
+        .hidden-opacity {
+            visibility: hidden;
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        .visible-opacity {
+            visibility: visible;
+            opacity: 1;
+            transform: scale(1);
         }
 
-        #chat-container {
-            flex-direction: column; /* Stack sidebar and chat area vertically */
-            width: 100%;
-            height: 100vh; /* Use full viewport height */
-            border-radius: 0;
-            box-shadow: none;
+        /* Desktop Styles */
+        @media (min-width: 768px) {
+            .chat-panel {
+                @apply relative w-1/2 md:w-full max-w-none transform-none;
+            }
+            .chat-panel.active {
+                @apply transform-none;
+            }
+            .chat-panel-toggle-btn {
+                @apply hidden;
+            }
         }
-
-        #sidebar {
-            width: 100%; /* Sidebar takes full width */
-            padding: 15px;
-            border-right: none;
-            border-bottom: 1px solid #dee2e6;
-            height: auto;
-            flex-direction: row; /* Buttons and user list side-by-side */
-            align-items: center;
-            justify-content: space-between;
-        }
-        
-        #online-users {
-            display: none; /* Hide the user list on mobile to save space */
-        }
-        
-        #voice-call-buttons {
-            flex-direction: row; /* Arrange buttons horizontally */
-            margin-top: 0;
-            gap: 5px;
-        }
-
-        #voice-call-buttons button {
-            padding: 8px;
-            font-size: 12px;
-        }
-
-        #chat-area {
-            height: 100%;
-        }
-        
-        #message-history {
-            padding: 15px;
-        }
-        
-        .message-content {
-            max-width: 80%;
-        }
-
-        #message-form {
-            padding: 10px;
-        }
-
-        #message-input {
-            padding: 8px;
-        }
-
-        #message-form button {
-            padding: 8px 15px;
-        }
-
-        /* Private chat window for mobile */
-        #private-chat-window {
-            width: 100%;
-            height: 100%;
-            border-radius: 0;
-        }
-
-        /* Video call modal for mobile */
-        #video-container {
-            width: 100%;
-            height: 100%;
-            border-radius: 0;
-        }
-
-        #local-video {
-            width: 100px;
-            height: 75px;
-            bottom: 10px;
-            right: 10px;
-        }
-        
-        #call-controls button {
-            padding: 10px 20px;
-            font-size: 14px;
-        }
-    }
-</style>
+    </style>
 </head>
 <body>
-    <div id="chat-container">
-        <div id="sidebar">
-            <h3>Online Users</h3>
-            <ul id="online-users">
+
+    <!-- Main Chat Container -->
+    <div id="chat-container" class="bg-white dark:bg-gray-800 shadow-xl rounded-lg mx-auto w-full max-w-4xl h-screen md:h-[90vh] md:my-5 overflow-hidden">
+        
+        <!-- Header -->
+        <header class="bg-white dark:bg-dark-bg p-4 flex items-center justify-between shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center space-x-3">
+                <!-- Voxa Logo/Icon (using Phosphor Icons) -->
+                <i class="ph ph-wave-square text-primary-blue text-3xl"></i>
+                <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">Voxa</h1>
+            </div>
+            <div class="flex space-x-4">
+                <button id="open-users-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                     <i class="ph ph-users text-2xl"></i>
+                </button>
+                 <button id="open-whiteboard-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="ph ph-paint-brush-broad text-2xl"></i>
+                </button>
+                 <button id="open-settings-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <i class="ph ph-gear-six text-2xl"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <main id="main-chat-area" class="flex flex-col p-4">
+            <div id="message-history" class="space-y-4">
+                <!-- Messages will be appended here -->
+            </div>
+        </main>
+        
+        <!-- Bottom Control Panel for Call and Message Input -->
+        <div class="bg-white dark:bg-dark-bg p-4 shadow-t-lg border-t border-gray-200 dark:border-gray-700 flex flex-col md:flex-row items-center gap-4">
+            
+            <!-- Message Input Form -->
+            <form id="message-form" class="flex-grow flex w-full md:w-auto">
+                <input type="text" id="message-input" placeholder="Say something in the public chat..."
+                       class="flex-grow px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-blue placeholder-gray-400">
+                <button type="submit" class="ml-2 px-4 py-2 bg-primary-blue text-white rounded-full font-semibold shadow-md hover:bg-blue-600 transition-colors">
+                    Send
+                </button>
+            </form>
+
+            <!-- Voice/Video Call Buttons -->
+            <div id="call-buttons" class="flex items-center space-x-2 mt-4 md:mt-0 w-full md:w-auto justify-center">
+                <button id="start-voice-call-btn" class="bg-green-500 text-white p-3 rounded-full shadow-md hover:bg-green-600 transition-colors">
+                    <i class="ph ph-phone text-xl"></i>
+                </button>
+                 <button id="start-video-call-btn" class="bg-blue-500 text-white p-3 rounded-full shadow-md hover:bg-blue-600 transition-colors">
+                    <i class="ph ph-video-camera text-xl"></i>
+                </button>
+                <button id="end-call-btn" class="bg-red-500 text-white p-3 rounded-full shadow-md hover:bg-red-600 transition-colors hidden">
+                    <i class="ph ph-x-circle text-xl"></i>
+                </button>
+                <button id="toggle-mic-btn" class="bg-gray-500 text-white p-3 rounded-full shadow-md hover:bg-gray-600 transition-colors hidden">
+                    <i class="ph ph-microphone text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals and Overlays -->
+
+    <!-- Online Users List Modal -->
+    <div id="online-users-modal" class="overlay hidden-opacity">
+        <div class="modal-content">
+            <div class="flex justify-between items-center pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-xl font-bold">Online Users</h3>
+                <button id="close-users-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <div class="mt-4 overflow-y-auto max-h-[70vh]">
+                <ul id="online-users-list" class="space-y-2">
+                    <!-- Users will be populated here by JavaScript -->
                 </ul>
-        </div>
-
-        <div id="main-chat-area">
-            <div id="messages">
-                </div>
-            <div id="message-input-area">
-                <input type="text" id="message-input" placeholder="Type your message...">
-                <button id="send-button">Send</button>
-            </div>
-            <div id="call-controls">
-                <button id="start-call-button">Start Voice Call</button>
-                <button id="end-call-button" style="display: none;">End Voice Call</button>
             </div>
         </div>
-
-        <div id="dm-container">
-            <div id="dm-header">
-                <h3 id="dm-recipient-name">Direct Message with: </h3>
-                <button id="dm-close-button">&times;</button>
+    </div>
+    
+    <!-- Private Message (DM) Modal -->
+    <div id="dm-modal" class="overlay hidden-opacity">
+        <div class="modal-content">
+            <div class="flex justify-between items-center pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 id="dm-recipient-name" class="text-xl font-bold">Direct Message</h3>
+                <button id="close-dm-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
             </div>
-            <div id="dm-messages">
+            <div id="dm-messages-container" class="flex-grow overflow-y-auto my-4 space-y-2">
+                <!-- DM messages will be appended here -->
+            </div>
+            <form id="dm-form" class="flex mt-4">
+                <input type="text" id="dm-input" placeholder="Type a private message..."
+                       class="flex-grow px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-blue">
+                <button type="submit" class="ml-2 px-4 py-2 bg-primary-blue text-white rounded-full font-semibold shadow-md hover:bg-blue-600 transition-colors">
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Video Call Modal -->
+    <div id="video-call-modal" class="overlay hidden-opacity">
+        <div class="relative w-full h-full max-w-screen-xl max-h-screen">
+            <!-- Remote video stream from other user -->
+            <video id="remote-video" autoplay class="w-full h-full object-cover rounded-xl"></video>
+            <!-- Local video stream from current user -->
+            <video id="local-video" autoplay muted class="absolute bottom-6 right-6 w-48 h-36 border-4 border-white rounded-xl object-cover shadow-lg"></video>
+            <div id="video-call-controls" class="absolute bottom-6 left-1/2 -translate-x-1/2 flex space-x-4">
+                <button id="end-video-call-btn" class="bg-red-500 text-white p-4 rounded-full text-2xl shadow-lg hover:bg-red-600 transition-colors">
+                    <i class="ph ph-phone-disconnect"></i>
+                </button>
+                <button id="toggle-video-btn" class="bg-gray-500 text-white p-4 rounded-full text-2xl shadow-lg hover:bg-gray-600 transition-colors">
+                    <i class="ph ph-video-camera-slash"></i>
+                </button>
+                <button id="toggle-mic-in-call-btn" class="bg-gray-500 text-white p-4 rounded-full text-2xl shadow-lg hover:bg-gray-600 transition-colors">
+                    <i class="ph ph-microphone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="overlay hidden-opacity">
+        <div class="modal-content">
+             <div class="flex justify-between items-center pb-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-xl font-bold">Settings</h3>
+                <button id="close-settings-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            
+            <div class="mt-4 flex flex-col space-y-6">
+                <!-- Auto Call Toggle -->
+                <div class="toggle-switch-container">
+                    <span class="text-lg font-medium text-gray-900 dark:text-gray-100">Auto Call</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="auto-call-toggle">
+                        <span class="slider"></span>
+                    </label>
                 </div>
-            <div id="dm-input-area">
-                <input type="text" id="dm-message-input" placeholder="Type private message...">
-                <button id="dm-send-button">Send</button>
+
+                <!-- Call History Section -->
+                <div>
+                    <h4 class="text-lg font-bold mb-3">Call History</h4>
+                    <div id="call-history-list" class="space-y-3 max-h-64 overflow-y-auto pr-2">
+                        <!-- Call history items will be appended here -->
+                        <div class="text-center text-gray-500 italic">No call history yet.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Whiteboard/Game Modal -->
+    <div id="whiteboard-modal" class="overlay hidden-opacity">
+        <div class="relative w-full h-full max-w-screen-xl max-h-screen p-4 flex flex-col items-center">
+            <div class="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full h-full p-4 flex flex-col">
+                <div class="flex justify-between items-center pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-xl font-bold">Whiteboard</h3>
+                    <div class="flex items-center space-x-4">
+                        <!-- Game Mode Toggle Button -->
+                        <button id="game-mode-toggle-btn" class="bg-primary-blue text-white p-2 rounded-full font-semibold shadow-md hover:bg-blue-600 transition-colors">
+                            <i class="ph ph-game-controller text-2xl"></i>
+                        </button>
+                        <!-- Whiteboard Controls -->
+                        <div id="whiteboard-controls" class="flex items-center space-x-4">
+                            <input type="color" id="whiteboard-color" class="w-8 h-8 rounded-full border-2 border-gray-300 cursor-pointer">
+                            <button id="whiteboard-clear-btn" class="text-red-500 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                <i class="ph ph-trash-simple text-2xl"></i>
+                            </button>
+                        </div>
+                        <button id="close-whiteboard-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                    </div>
+                </div>
+
+                <!-- Game UI - Hidden by default -->
+                <div id="game-ui" class="hidden flex-col items-center space-y-4 py-4">
+                    <div class="flex items-center space-x-4">
+                        <div class="text-xl font-semibold">Current Player: <span id="current-player-name" class="text-primary-blue"></span></div>
+                        <div class="text-xl font-semibold">Score: <span id="game-score" class="text-primary-blue">0</span></div>
+                    </div>
+                    <div id="word-to-draw-container" class="hidden">
+                        <div class="text-lg">Your word is: <span id="word-to-draw" class="font-bold text-xl"></span></div>
+                    </div>
+                    <div id="game-message" class="text-center text-lg italic text-gray-500"></div>
+                </div>
+
+                <!-- Canvas Area -->
+                <div class="flex-grow relative mt-4">
+                    <canvas id="whiteboard-canvas" class="bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-lg w-full h-full"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
-    <div id="video-container" style="display: none;">
-        <video id="local-video" autoplay muted></video>
-        <video id="remote-video" autoplay></video>
-        <audio id="remote-audio" autoplay style="display:none;"></audio>
-    </div>
 
     <script>
+        
         const socket = io();
 
-        const messagesDiv = document.getElementById('messages');
+        // Main chat elements
+        const messageHistoryDiv = document.getElementById('message-history');
+        const messageForm = document.getElementById('message-form');
         const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
-        const onlineUsersList = document.getElementById('online-users');
+        const startVoiceCallButton = document.getElementById('start-voice-call-btn');
+        const startVideoCallButton = document.getElementById('start-video-call-btn');
+        const endCallButton = document.getElementById('end-call-btn');
+        const toggleMicButton = document.getElementById('toggle-mic-btn');
+        const openUsersButton = document.getElementById('open-users-btn');
+        const openSettingsButton = document.getElementById('open-settings-btn');
+        const openWhiteboardButton = document.getElementById('open-whiteboard-btn');
 
-        const startCallButton = document.getElementById('start-call-button');
-        const endCallButton = document.getElementById('end-call-button');
-
-        // NEW DM Elements
-        const dmContainer = document.getElementById('dm-container');
+        // Modals
+        const usersModal = document.getElementById('online-users-modal');
+        const usersList = document.getElementById('online-users-list');
+        const closeUsersModalBtn = document.getElementById('close-users-modal-btn');
+        const dmModal = document.getElementById('dm-modal');
         const dmRecipientName = document.getElementById('dm-recipient-name');
-        const dmMessagesDiv = document.getElementById('dm-messages');
-        const dmMessageInput = document.getElementById('dm-message-input');
-        const dmSendButton = document.getElementById('dm-send-button');
-        const dmCloseButton = document.getElementById('dm-close-button');
+        const dmMessagesDiv = document.getElementById('dm-messages-container');
+        const dmForm = document.getElementById('dm-form');
+        const dmInput = document.getElementById('dm-input');
+        const closeDmModalBtn = document.getElementById('close-dm-modal-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeSettingsModalBtn = document.getElementById('close-settings-modal-btn');
+        const autoCallToggle = document.getElementById('auto-call-toggle');
+        const callHistoryList = document.getElementById('call-history-list');
 
-        // WebRTC Video Elements
-        const localVideo = document.getElementById('local-video');
-        const remoteVideo = document.getElementById('remote-video');
-        const videoContainer = document.getElementById('video-container');
-        const toggleVideoButton = document.createElement('button');
-        toggleVideoButton.textContent = 'Toggle Video';
-        toggleVideoButton.id = 'toggle-video-button';
-        toggleVideoButton.style.display = 'none'; // Initially hidden
-        document.getElementById('call-controls').appendChild(toggleVideoButton); // Add to call controls
-
-toggleVideoButton.addEventListener('click', () => {
-    if (localStream) {
-        const videoTracks = localStream.getVideoTracks();
-        if (videoTracks.length > 0) {
-            videoTracks.forEach(track => {
-                track.enabled = !track.enabled; // Toggle enable/disable
-            });
-            showSystemMessage(`Video ${videoTracks[0].enabled ? 'on' : 'off'}`);
-        } else {
-            showSystemMessage("No video track found in local stream.");
-            // Option: if no video track, try to add one dynamically or alert user
-        }
-    }
-});
- // Container for both videos
-
+        // Whiteboard and Game elements
+        const whiteboardModal = document.getElementById('whiteboard-modal');
+        const closeWhiteboardModalBtn = document.getElementById('close-whiteboard-modal-btn');
+        const whiteboardCanvas = document.getElementById('whiteboard-canvas');
+        const whiteboardColorPicker = document.getElementById('whiteboard-color');
+        const whiteboardClearBtn = document.getElementById('whiteboard-clear-btn');
+        const whiteboardControls = document.getElementById('whiteboard-controls');
+        const gameModeToggleBtn = document.getElementById('game-mode-toggle-btn');
+        const gameUI = document.getElementById('game-ui');
+        const currentPlayerNameEl = document.getElementById('current-player-name');
+        const gameScoreEl = document.getElementById('game-score');
+        const wordToDrawContainer = document.getElementById('word-to-draw-container');
+        const wordToDrawEl = document.getElementById('word-to-draw');
+        const gameMessageEl = document.getElementById('game-message');
+        
+        let whiteboardContext = whiteboardCanvas.getContext('2d');
+        
+        // State variables
         let localStream;
         let peerConnection;
-        let currentPeerUsername = null; // Stores the username of the person you are in a call with
+        let currentPeerUsername = null;
+        let myUsername = '';
+        let micEnabled = true;
+        let videoEnabled = true;
+        let isVideoCall = false;
+        let isAutoCallEnabled = false;
+        
+        // Whiteboard/Game State
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let currentStrokeColor = whiteboardColorPicker.value;
+        let isGameMode = false;
+        let isMyTurnToDraw = false;
+        let gameActive = false;
 
-        // --- DM Specific Variables ---
-        let activeDMRecipient = null; // Stores the username of the current DM recipient
-        // Stores private message history: { 'username': [{sender: '...', message: '...', is_me: true/false}, ...] }
-        const privateMessageHistory = {}; 
+        // DM specific state
+        let activeDMRecipient = null;
+        const privateMessageHistory = {};
 
-        // --- Utility Functions ---
-        let myUsername = ''; // This will be set by the 'current_user_info' event
+        // Call history storage (in-memory, for demonstration)
+        const callHistory = [];
+        
+        // Utility function to add a class with a transition
+        function showModal(modalElement) {
+            modalElement.classList.remove('hidden-opacity');
+            modalElement.classList.add('visible-opacity');
+        }
 
-        // Function to append messages to the chat area
-        function appendMessage(username, message, isSystem = false) {
+        // Utility function to remove a class with a transition
+        function hideModal(modalElement) {
+            modalElement.classList.remove('visible-opacity');
+            modalElement.classList.add('hidden-opacity');
+        }
+
+        // --- Message Functions ---
+        function appendMessage(username, message, isSystem = false, isMine = false, isDM = false) {
             const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message');
+            messageDiv.classList.add('message-bubble');
+
             if (isSystem) {
                 messageDiv.classList.add('system-message');
+                messageDiv.textContent = `System: ${message}`;
+            } else {
+                const usernameSpan = document.createElement('span');
+                usernameSpan.classList.add('font-bold', 'text-sm', 'block', 'text-gray-800');
+                usernameSpan.textContent = username;
+
+                const messageContent = document.createElement('p');
+                messageContent.textContent = message;
+                messageContent.classList.add('mt-1');
+                
+                messageDiv.appendChild(usernameSpan);
+                messageDiv.appendChild(messageContent);
+                
+                if (isMine) {
+                    messageDiv.classList.add('my-message-bubble');
+                } else {
+                    messageDiv.classList.add('other-message-bubble');
+                }
             }
 
-            const strong = document.createElement('strong');
-            strong.innerHTML = username + ': '; // Use innerHTML to allow HTML in system messages
-            messageDiv.appendChild(strong);
-            messageDiv.appendChild(document.createTextNode(message)); // Use textNode for safety with user messages
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            if (isDM) {
+                dmMessagesDiv.appendChild(messageDiv);
+                dmMessagesDiv.scrollTop = dmMessagesDiv.scrollHeight;
+            } else {
+                messageHistoryDiv.appendChild(messageDiv);
+                messageHistoryDiv.scrollTop = messageHistoryDiv.scrollHeight;
+            }
         }
-
+        
         // Function to display system messages (replaces alerts)
         function showSystemMessage(message) {
-            const messageList = document.getElementById('messages');
-            if (!messageList) {
-            console.error("Error: The message list element was not found.");
-            return; // Exit the function if the element doesn't exist
-    }
             const systemMessageElement = document.createElement('div');
             systemMessageElement.classList.add('system-message');
-            systemMessageElement.innerHTML = `System: ${message}`;
-            messageList.appendChild(systemMessageElement);
-            messageList.scrollTop = messageList.scrollHeight; // Auto-scroll
-        }
-
-        // NEW: Function to append DM messages to the DM area
-        function appendDMMessage(sender, message, isMe = false) {
-            const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message');
-            
-            if (isMe) {
-                messageDiv.classList.add('dm-message-mine');
-            } else {
-                messageDiv.classList.add('dm-message-other');
-            }
-
-            const strong = document.createElement('strong');
-            strong.textContent = (isMe ? 'You' : sender) + ': ';
-            messageDiv.appendChild(strong);
-            messageDiv.appendChild(document.createTextNode(message));
-            dmMessagesDiv.appendChild(messageDiv);
-            dmMessagesDiv.scrollTop = dmMessagesDiv.scrollHeight;
+            systemMessageElement.textContent = `System: ${message}`;
+            messageHistoryDiv.appendChild(systemMessageElement);
+            messageHistoryDiv.scrollTop = messageHistoryDiv.scrollHeight;
         }
 
         // --- WebRTC Functions ---
-
         const servers = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                // You can add more STUN/TURN servers for robustness
-            ]
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
         };
 
-        async function getLocalMediaStream() {
+        async function getLocalMediaStream(includeVideo) {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-                showSystemMessage("Local audio stream obtained.");
-                localVideo.srcObject = localStream; // It will just be a black box or hidden if no video tracks.
-                videoContainer.style.display = 'flex'; 
+                localStream = await navigator.mediaDevices.getUserMedia({ video: includeVideo, audio: true });
+                showSystemMessage(`Local ${includeVideo ? 'video and audio' : 'audio'} stream obtained.`);
+                if(includeVideo) {
+                    localVideo.srcObject = localStream;
+                    videoEnabled = true;
+                    toggleVideoBtn.innerHTML = `<i class="ph ph-video-camera-slash"></i>`;
+                } else {
+                    localVideo.srcObject = null;
+                }
+                micEnabled = true;
                 return true;
             } catch (error) {
                 console.error('Error getting local media stream:', error);
-                showSystemMessage(`Error accessing mic: ${error.message}. Please allow access.`);
+                showSystemMessage(`Error accessing mic/camera: ${error.message}. Please allow access.`);
                 return false;
             }
         }
 
         function createPeerConnection() {
-            if (peerConnection) {
-                console.warn("Peer connection already exists. Reinitializing.");
-                cleanupCall(); // Ensure a clean slate
-            }
-
+            if (peerConnection) cleanupCall();
             peerConnection = new RTCPeerConnection(servers);
 
-            localStream.getTracks().forEach(track => {
-                peerConnection.addTrack(track, localStream);
-            });
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
             peerConnection.ontrack = (event) => {
-                if (event.track.kind === 'video') {
-                if (remoteVideo.srcObject !== event.streams[0]) {
-                    remoteVideo.srcObject = event.streams[0];
-                    showSystemMessage("Remote video stream received.");
+                if (event.track.kind === 'audio') {
+                    const remoteAudio = new Audio();
+                    remoteAudio.srcObject = event.streams[0];
+                    remoteAudio.autoplay = true;
+                    showSystemMessage("Remote audio stream received.");
+                } else if (event.track.kind === 'video') {
+                     remoteVideo.srcObject = event.streams[0];
+                     showSystemMessage("Remote video stream received.");
                 }
-             } else if (event.track.kind === 'audio') {
-        // Create an Audio element if it doesn't exist or manage the existing one
-        const remoteAudioElement = document.getElementById('remote-audio');
-        if (remoteAudioElement.srcObject !== event.streams[0]) {
-            remoteAudioElement.srcObject = event.streams[0];
-            showSystemMessage("Remote audio stream received. Playback initiated.");
-            // Ensure it's not muted, though autoplay should handle it
-            remoteAudioElement.muted = false; 
-            remoteAudioElement.play().catch(e => console.error("Error playing remote audio:", e));
-        }
-    }
             };
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log('Sending ICE candidate:', event.candidate);
-                    socket.emit('ice_candidate', {
-                        candidate: event.candidate,
-                        peer: currentPeerUsername
-                    });
+                    socket.emit('ice_candidate', { candidate: event.candidate, peer: currentPeerUsername });
                 }
             };
-
+            
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('ICE connection state changed:', peerConnection.iceConnectionState);
                 showSystemMessage(`Call status: ${peerConnection.iceConnectionState}`);
                 if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
-                    console.warn('ICE connection disconnected or failed. Attempting cleanup.');
-                    // Consider triggering endCall if persistent
-                    if (currentPeerUsername) {
-                        showSystemMessage(`Call with ${currentPeerUsername} disconnected (${peerConnection.iceConnectionState}).`);
-                        // Optionally trigger cleanup or server side end call if state is truly bad
-                    }
+                    showSystemMessage(`Call with ${currentPeerUsername} disconnected.`);
+                    logCallHistory(currentPeerUsername, isVideoCall);
+                    cleanupCall();
                 } else if (peerConnection.iceConnectionState === 'connected') {
-                     showSystemMessage(`Call with ${currentPeerUsername} connected!`);
+                    showSystemMessage(`Call with ${currentPeerUsername} connected!`);
                 }
-            };
-
-            peerConnection.onsignalingstatechange = () => {
-                console.log('Signaling state changed:', peerConnection.signalingState);
             };
         }
 
-        async function initiateCallProcess(isOfferer) {
-            // Ensure we have a local stream before proceeding
-            const streamReady = await getLocalMediaStream();
-            if (!streamReady) {
-                console.error("Cannot initiate call without local media stream.");
-                return;
-            }
+        async function initiateCallProcess(isOfferer, includeVideo) {
+            const streamReady = await getLocalMediaStream(includeVideo);
+            if (!streamReady) return;
 
-            createPeerConnection(); // Always create a fresh peer connection
+            createPeerConnection();
+            showModal(videoCallModal);
+            
+            // Toggle visibility of call buttons
+            startVoiceCallButton.classList.add('hidden');
+            startVideoCallButton.classList.add('hidden');
+            endCallButton.classList.remove('hidden');
+            toggleMicButton.classList.add('hidden');
+            toggleMicInCallBtn.classList.remove('hidden');
+
+            if(includeVideo) {
+                 toggleVideoBtn.classList.remove('hidden');
+            } else {
+                 toggleVideoBtn.classList.add('hidden');
+            }
 
             if (isOfferer) {
                 try {
-                    showSystemMessage("Creating offer...");
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
-                    console.log('Sending offer:', offer);
-                    socket.emit('offer', { sdp: offer, peer: currentPeerUsername });
-                    showSystemMessage("Offer sent.");
+                    socket.emit('offer', { sdp: offer, peer: currentPeerUsername, isVideo: includeVideo });
                 } catch (error) {
-                    console.error('Error creating or sending offer:', error);
+                    console.error('Error creating offer:', error);
                     showSystemMessage(`Error during offer setup: ${error.message}.`);
+                    cleanupCall();
                 }
-            } else {
-                showSystemMessage("Waiting to receive offer...");
-                // The answerer will create an answer when they receive an offer
             }
         }
 
@@ -681,168 +508,239 @@ toggleVideoButton.addEventListener('click', () => {
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
-                localVideo.srcObject = null;
-            }
-            if (remoteVideo) {
-                remoteVideo.srcObject = null;
             }
             if (peerConnection) {
                 peerConnection.close();
                 peerConnection = null;
             }
-            videoContainer.style.display = 'none'; // Hide video container
-            endCallButton.style.display = 'none';
-            startCallButton.style.display = 'inline-block';
+            if (remoteVideo) remoteVideo.srcObject = null;
+            if (localVideo) localVideo.srcObject = null;
+
+            hideModal(videoCallModal);
+            startVoiceCallButton.classList.remove('hidden');
+            startVideoCallButton.classList.remove('hidden');
+            endCallButton.classList.add('hidden');
+            toggleMicButton.classList.remove('hidden');
+            toggleMicInCallBtn.classList.add('hidden');
+            toggleVideoBtn.classList.add('hidden');
             currentPeerUsername = null;
-            showSystemMessage("Call resources cleaned up.");
+            showSystemMessage("Call ended.");
+        }
+        
+        // New function to log call history
+        function logCallHistory(peer, isVideo) {
+            const callType = isVideo ? 'Video Call' : 'Voice Call';
+            const callTime = new Date().toLocaleTimeString();
+            callHistory.push({ peer, callType, callTime });
+            renderCallHistory();
+        }
+        
+        // New function to render call history in the modal
+        function renderCallHistory() {
+            callHistoryList.innerHTML = '';
+            if (callHistory.length === 0) {
+                 callHistoryList.innerHTML = '<div class="text-center text-gray-500 italic">No call history yet.</div>';
+                 return;
+            }
+            callHistory.forEach(call => {
+                const historyItem = document.createElement('div');
+                historyItem.classList.add('flex', 'items-center', 'space-x-4', 'p-3', 'bg-gray-100', 'dark:bg-gray-700', 'rounded-lg');
+                historyItem.innerHTML = `
+                    <div class="text-2xl text-primary-blue">
+                        <i class="ph ${call.callType === 'Video Call' ? 'ph-video-camera' : 'ph-phone'}"></i>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="font-semibold">${call.peer}</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400">${call.callType} at ${call.callTime}</div>
+                    </div>
+                `;
+                callHistoryList.prepend(historyItem);
+            });
+        }
+        
+        // --- Whiteboard & Game Functions ---
+        function setupWhiteboard() {
+            const resizeCanvas = () => {
+                whiteboardCanvas.width = whiteboardCanvas.clientWidth;
+                whiteboardCanvas.height = whiteboardCanvas.clientHeight;
+                whiteboardContext.lineCap = 'round';
+                whiteboardContext.lineWidth = 3;
+            };
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            const startDrawing = (e) => {
+                // Only allow drawing in whiteboard mode, or if it's your turn in game mode
+                if (!isGameMode || (isGameMode && isMyTurnToDraw)) {
+                    isDrawing = true;
+                    [lastX, lastY] = [e.offsetX, e.offsetY];
+                }
+            };
+        
+            const endDrawing = () => {
+                if (isDrawing) {
+                    isDrawing = false;
+                }
+            };
+        
+            const onMouseMove = (e) => {
+                if (!isDrawing) return;
+                const newX = e.offsetX;
+                const newY = e.offsetY;
+                
+                // Draw locally
+                whiteboardContext.beginPath();
+                whiteboardContext.strokeStyle = currentStrokeColor;
+                whiteboardContext.moveTo(lastX, lastY);
+                whiteboardContext.lineTo(newX, newY);
+                whiteboardContext.stroke();
+                
+                // Emit drawing data to the other peer
+                if (currentPeerUsername) {
+                    socket.emit('draw_data', {
+                        x1: lastX,
+                        y1: lastY,
+                        x2: newX,
+                        y2: newY,
+                        color: currentStrokeColor,
+                        peer: currentPeerUsername
+                    });
+                }
+                [lastX, lastY] = [newX, newY];
+            };
+        
+            whiteboardCanvas.addEventListener('mousedown', startDrawing);
+            whiteboardCanvas.addEventListener('mouseup', endDrawing);
+            whiteboardCanvas.addEventListener('mouseout', endDrawing);
+            whiteboardCanvas.addEventListener('mousemove', onMouseMove);
+            
+            whiteboardColorPicker.addEventListener('change', (e) => {
+                currentStrokeColor = e.target.value;
+            });
+            
+            whiteboardClearBtn.addEventListener('click', () => {
+                if (!isGameMode || (isGameMode && isMyTurnToDraw)) {
+                    whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+                    if (currentPeerUsername) {
+                        socket.emit('clear_whiteboard', { peer: currentPeerUsername });
+                    }
+                }
+            });
+        }
+        
+        function toggleGameMode(enabled) {
+            isGameMode = enabled;
+            if (isGameMode) {
+                // Switch to game mode UI
+                gameModeToggleBtn.innerHTML = `<i class="ph ph-x-circle text-2xl"></i>`;
+                gameModeToggleBtn.classList.add('bg-red-500');
+                gameModeToggleBtn.classList.remove('bg-primary-blue');
+                whiteboardControls.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+                gameMessageEl.textContent = "Waiting for a game to start...";
+                socket.emit('start_game_request', { peer: currentPeerUsername });
+            } else {
+                // Switch to regular whiteboard mode UI
+                gameModeToggleBtn.innerHTML = `<i class="ph ph-game-controller text-2xl"></i>`;
+                gameModeToggleBtn.classList.remove('bg-red-500');
+                gameModeToggleBtn.classList.add('bg-primary-blue');
+                whiteboardControls.classList.remove('hidden');
+                gameUI.classList.add('hidden');
+                wordToDrawContainer.classList.add('hidden');
+                isMyTurnToDraw = false;
+                whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+                gameActive = false;
+                socket.emit('end_game', { peer: currentPeerUsername });
+            }
         }
 
 
-        socket.on('user_connected_message', function(data) {
-    showSystemMessage(data.message);
-});
-
-socket.on('user_disconnected_message', function(data) {
-    showSystemMessage(data.message);
-});// --- Socket.IO Event Handlers (Continued) ---
-
-        socket.on('load_history', (data) => {
-            data.history.forEach(msg => {
-                appendMessage(msg.username, msg.message);
-            });
-        });
-
+        // --- Socket.IO Event Handlers ---
+        socket.on('user_connected_message', (data) => showSystemMessage(data.message));
+        socket.on('user_disconnected_message', (data) => showSystemMessage(data.message));
+        socket.on('load_history', (data) => data.history.forEach(msg => appendMessage(msg.username, msg.message)));
         socket.on('current_user_info', (data) => {
-            myUsername = data.username; // Set myUsername from the server
-            sessionStorage.setItem('username', data.username); // Store it for persistence
-            console.log("Current user set to:", myUsername);
+            myUsername = data.username;
+            sessionStorage.setItem('username', data.username);
         });
 
         socket.on('update_user_list', (data) => {
-            onlineUsersList.innerHTML = ''; // Clear existing list
-            data.users.forEach(user_data => { // CORRECTED: This defines 'user_data' for this loop
-                const li = document.createElement('li');
-                
-                // Only create clickable item if it's not the current user
+            usersList.innerHTML = '';
+            data.users.forEach(user_data => {
                 if (user_data.username !== myUsername) {
-                    const statusDot = document.createElement('span');
-                    statusDot.classList.add('status-dot');
-                    if (user_data.status === 'online') {
-                        statusDot.classList.add('status-online');
-                    } else if (user_data.status === 'in_call') {
-                        statusDot.classList.add('status-in-call');
-                    }
-                    li.appendChild(statusDot);
-
-                    const span = document.createElement('span'); // Use a span for clickable part
-                    span.textContent = user_data.username; // CORRECTED: Use user_data.username
-                    span.dataset.username = user_data.username; // Store username for easy access
-                    span.classList.add('online-user-item'); // Add a class for styling/event delegation
-                    li.appendChild(span);
-                    onlineUsersList.appendChild(li);
+                    const li = document.createElement('li');
+                    li.classList.add('flex', 'items-center', 'space-x-3', 'p-3', 'bg-gray-100', 'dark:bg-dark-card', 'rounded-lg', 'cursor-pointer', 'hover:bg-gray-200', 'dark:hover:bg-gray-700', 'transition-colors');
+                    li.dataset.username = user_data.username;
+                    li.innerHTML = `
+                        <div class="w-2.5 h-2.5 rounded-full ${user_data.status === 'online' ? 'bg-green-500' : 'bg-red-500'}"></div>
+                        <span class="text-gray-800 dark:text-gray-200">${user_data.username}</span>
+                        <span class="text-sm italic text-gray-500 ml-auto">${user_data.status === 'in_call' ? '(In Call)' : ''}</span>
+                    `;
+                    usersList.appendChild(li);
                 }
             });
         });
 
-        socket.on('receive_message', (data) => {
-            appendMessage(data.username, data.message);
-        });
+        socket.on('receive_message', (data) => appendMessage(data.username, data.message));
 
-        // NEW: Handle incoming private messages
         socket.on('receive_private_message', (data) => {
             const sender = data.sender;
             const message = data.message;
-             if (sender !== myUsername) {
-        // Store in history
-        if (!privateMessageHistory[sender]) {
-            privateMessageHistory[sender] = [];
-        }
-        privateMessageHistory[sender].push({ sender: sender, message: message, is_me: false });
+            if (sender !== myUsername) {
+                if (!privateMessageHistory[sender]) { privateMessageHistory[sender] = []; }
+                privateMessageHistory[sender].push({ sender: sender, message: message, is_me: false });
+                if (activeDMRecipient === sender) {
+                    appendMessage(sender, message, false, false, true);
+                } else {
+                    showSystemMessage(`New private message from ${sender}!`);
+                }
+            }
+        });
 
-        // If the DM window for this sender is open, append the message
-        if (activeDMRecipient === sender) {
-            appendDMMessage(sender, message, false);
-        } else {
-            // Optionally show a notification
-            showSystemMessage(`New private message from ${sender}!`);
-        }
-    }
-});
         socket.on('start_voice_call', (data) => {
             showSystemMessage(`You have been matched with @${data.peer}. Voice call starting...`);
-            currentPeerUsername = data.peer; // This is the person you will send the offer to
-            startCallButton.style.display = 'none';
-            endCallButton.style.display = 'inline-block';
-            initiateCallProcess(true); // You are the offerer
+            currentPeerUsername = data.peer;
+            isVideoCall = false;
+            initiateCallProcess(true, isVideoCall);
+        });
+        
+        socket.on('start_video_call', (data) => {
+             showSystemMessage(`You have been matched with @${data.peer}. Video call starting...`);
+            currentPeerUsername = data.peer;
+            isVideoCall = true;
+            initiateCallProcess(true, isVideoCall);
         });
 
         socket.on('offer', async (data) => {
-            // This client is the answerer
             showSystemMessage(`Received call offer from @${data.sender}.`);
-            currentPeerUsername = data.sender; // This is the person you will send the answer back to
-            startCallButton.style.display = 'none';
-            endCallButton.style.display = 'inline-block';
-
-            // Only create peer connection and get local stream if not already done
-            if (!peerConnection || peerConnection.signalingState === 'closed') { 
-                const streamReady = await getLocalMediaStream();
-                if (!streamReady) return; // Cannot proceed without stream
-                createPeerConnection();
-            } else if (peerConnection.signalingState === 'stable' || peerConnection.signalingState === 'have-remote-offer') {
-                // If already in a call or already received an offer, handle appropriately
-                console.warn("Received offer in unexpected signaling state:", peerConnection.signalingState);
-                // Depending on your app logic, you might want to reject this offer
-                // or assume it's a retransmission and try to process.
-                // For simplicity, we'll try to process assuming it's legitimate.
-            }
-
+            currentPeerUsername = data.sender;
+            isVideoCall = data.isVideo;
+            const streamReady = await getLocalMediaStream(isVideoCall);
+            if (!streamReady) return;
+            createPeerConnection();
+            showModal(videoCallModal);
             try {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                showSystemMessage("Offer set as remote description.");
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-                showSystemMessage("Answer created and set as local description.");
                 socket.emit('answer', { sdp: answer, peer: currentPeerUsername });
-                showSystemMessage("Answer sent to server.");
             } catch (error) {
                 console.error("Error receiving or setting offer:", error);
-                showSystemMessage(`Error during call setup (offer handling): ${error.message}. Please try again.`);
-                if (peerConnection) {
-                    console.error("Current Signaling State:", peerConnection.signalingState);
-                }
-                cleanupCall(); // Clean up on error
+                cleanupCall();
             }
         });
 
         socket.on('answer', async (data) => {
             showSystemMessage(`Received call answer from @${data.sender}.`);
             try {
-                // This client is the offerer. It must have its local offer already set
-                // and be in 'have-local-offer' state when receiving an answer.
                 if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    showSystemMessage("Answer set as remote description. Call connected!");
-                    if (peerConnection.signalingState === 'stable') {
-                        console.log('PeerConnection is stable after setting remote answer.');
-                    }
-                } else {
-                    console.warn("PeerConnection not in expected state to set answer, or signalingState is incorrect.", peerConnection);
-                    showSystemMessage("Error: Peer connection state mismatch during answer.");
-                    if (peerConnection) {
-                        console.warn("Current Signaling State:", peerConnection.signalingState);
-                    }
-                    cleanupCall(); // Clean up on error
+                    showSystemMessage("Call connected!");
                 }
             } catch (error) {
                 console.error("Error receiving or setting answer:", error);
-                showSystemMessage(`Error during call setup (answer handling): ${error.message}. Please try again.`);
-                if (error.name === 'InvalidStateError') {
-                    showSystemMessage("This usually means a signaling issue (e.g., trying to set an answer when not expecting one).");
-                }
-                if (peerConnection) {
-                    console.error("Current Signaling State:", peerConnection.signalingState);
-                }
-                cleanupCall(); // Clean up on error
+                cleanupCall();
             }
         });
 
@@ -850,58 +748,185 @@ socket.on('user_disconnected_message', function(data) {
             try {
                 if (data.candidate && peerConnection) {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    console.log('Added ICE candidate:', data.candidate);
                 }
             } catch (error) {
                 console.error('Error adding received ICE candidate:', error);
-                // Often this happens if candidate arrives when PC is closed or in wrong state.
-                // Log and ignore if already stable/connected.
-                if (peerConnection && peerConnection.iceConnectionState !== 'connected' && peerConnection.iceConnectionState !== 'completed') {
-                     showSystemMessage(`Error adding ICE candidate: ${error.message}.`);
-                }
             }
         });
 
         socket.on('call_ended_by_peer', (data) => {
-            showSystemMessage(`Call with @${data.peer} has ended unexpectedly.`);
+            showSystemMessage(`Call with @${data.peer} has ended.`);
+            logCallHistory(data.peer, isVideoCall);
             cleanupCall();
         });
+        
+        // Whiteboard drawing events from other user
+        socket.on('draw_data', (data) => {
+            whiteboardContext.beginPath();
+            whiteboardContext.strokeStyle = data.color;
+            whiteboardContext.moveTo(data.x1, data.y1);
+            whiteboardContext.lineTo(data.x2, data.y2);
+            whiteboardContext.stroke();
+        });
 
+        socket.on('clear_whiteboard', () => {
+            whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+        });
+
+        // Game specific events
+        socket.on('game_start', (data) => {
+            gameActive = true;
+            currentPlayerNameEl.textContent = data.drawer;
+            gameScoreEl.textContent = '0';
+            gameMessageEl.textContent = "The game has started!";
+            whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+        });
+
+        socket.on('your_turn', (data) => {
+            isMyTurnToDraw = true;
+            whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+            wordToDrawContainer.classList.remove('hidden');
+            wordToDrawEl.textContent = data.word;
+            gameMessageEl.textContent = "It's your turn to draw!";
+        });
+        
+        socket.on('turn_started', (data) => {
+            isMyTurnToDraw = false;
+            wordToDrawContainer.classList.add('hidden');
+            whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+            gameMessageEl.textContent = `${data.drawer} is drawing. Guess the word!`;
+        });
+        
+        socket.on('guess_correct', (data) => {
+            gameScoreEl.textContent = data.score;
+            gameMessageEl.textContent = `${data.guesser} guessed the word! The word was "${data.word}".`;
+            whiteboardContext.clearRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+        });
+        
+        socket.on('game_over', (data) => {
+            gameActive = false;
+            isMyTurnToDraw = false;
+            whiteboardControls.classList.remove('hidden');
+            gameMessageEl.textContent = `Game Over! Final Score: ${data.score}.`;
+            wordToDrawContainer.classList.add('hidden');
+            // Give option to restart the game
+        });
 
         // --- Event Listeners ---
-
-        sendButton.addEventListener('click', () => {
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
             const message = messageInput.value.trim();
-            if (message) {
+            if (!message) return;
+
+            if (isGameMode && gameActive && !isMyTurnToDraw) {
+                // Send guess instead of public message
+                socket.emit('send_guess', { guess: message, peer: currentPeerUsername });
+                messageInput.value = '';
+            } else {
                 socket.emit('send_message', { message: message });
                 messageInput.value = '';
             }
         });
-
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendButton.click();
-            }
-        });
-
-        startCallButton.addEventListener('click', () => {
+        
+        startVoiceCallButton.addEventListener('click', () => {
             if (!myUsername) {
-                showSystemMessage("Please wait, connecting to server to get your username...");
+                showSystemMessage("Connecting to server...");
                 return;
             }
             showSystemMessage("Requesting voice call...");
             socket.emit('request_voice_call');
         });
+        
+        startVideoCallButton.addEventListener('click', () => {
+            if (!myUsername) {
+                showSystemMessage("Connecting to server...");
+                return;
+            }
+            showSystemMessage("Requesting video call...");
+            socket.emit('request_video_call');
+        });
 
         endCallButton.addEventListener('click', () => {
-            showSystemMessage("Ending voice call...");
+            showSystemMessage("Ending call...");
+            logCallHistory(currentPeerUsername, isVideoCall);
             socket.emit('end_voice_call');
             cleanupCall();
         });
 
-        // NEW: DM sidebar event listeners
-        onlineUsersList.addEventListener('click', (event) => {
-            const clickedElement = event.target.closest('.online-user-item');
+        toggleMicButton.addEventListener('click', () => {
+            if (localStream) {
+                const audioTracks = localStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    micEnabled = !micEnabled;
+                    audioTracks.forEach(track => track.enabled = micEnabled);
+                    toggleMicButton.innerHTML = micEnabled ? `<i class="ph ph-microphone text-xl"></i>` : `<i class="ph ph-microphone-slash text-xl"></i>`;
+                    showSystemMessage(`Microphone turned ${micEnabled ? 'on' : 'off'}.`);
+                }
+            }
+        });
+
+        toggleMicInCallBtn.addEventListener('click', () => {
+            if (localStream) {
+                const audioTracks = localStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    micEnabled = !micEnabled;
+                    audioTracks.forEach(track => track.enabled = micEnabled);
+                    toggleMicInCallBtn.innerHTML = micEnabled ? `<i class="ph ph-microphone"></i>` : `<i class="ph ph-microphone-slash"></i>`;
+                }
+            }
+        });
+        
+        toggleVideoBtn.addEventListener('click', () => {
+            if (localStream) {
+                const videoTracks = localStream.getVideoTracks();
+                if (videoTracks.length > 0) {
+                    videoEnabled = !videoEnabled;
+                    videoTracks.forEach(track => track.enabled = videoEnabled);
+                    toggleVideoBtn.innerHTML = videoEnabled ? `<i class="ph ph-video-camera-slash"></i>` : `<i class="ph ph-video-camera"></i>`;
+                    showSystemMessage(`Video turned ${videoEnabled ? 'on' : 'off'}.`);
+                }
+            }
+        });
+
+        endVideoCallBtn.addEventListener('click', () => {
+            showSystemMessage("Ending call...");
+            logCallHistory(currentPeerUsername, isVideoCall);
+            socket.emit('end_voice_call');
+            cleanupCall();
+        });
+        
+        // Modal logic
+        openUsersButton.addEventListener('click', () => showModal(usersModal));
+        closeUsersModalBtn.addEventListener('click', () => hideModal(usersModal));
+        closeDmModalBtn.addEventListener('click', () => {
+            dmModal.classList.remove('visible-opacity');
+            dmModal.classList.add('hidden-opacity');
+            activeDMRecipient = null;
+        });
+        
+        openSettingsButton.addEventListener('click', () => {
+            renderCallHistory();
+            showModal(settingsModal);
+        });
+        closeSettingsModalBtn.addEventListener('click', () => hideModal(settingsModal));
+        
+        openWhiteboardButton.addEventListener('click', () => {
+            showModal(whiteboardModal);
+            setTimeout(setupWhiteboard, 300);
+        });
+        closeWhiteboardModalBtn.addEventListener('click', () => hideModal(whiteboardModal));
+
+        // New game toggle button
+        gameModeToggleBtn.addEventListener('click', () => {
+            if (!currentPeerUsername) {
+                showSystemMessage("Please connect to another user before starting a game.");
+                return;
+            }
+            toggleGameMode(!isGameMode);
+        });
+        
+        usersList.addEventListener('click', (event) => {
+            const clickedElement = event.target.closest('li');
             if (clickedElement) {
                 const username = clickedElement.dataset.username;
                 if (username && username !== myUsername) {
@@ -910,54 +935,43 @@ socket.on('user_disconnected_message', function(data) {
             }
         });
 
-        dmCloseButton.addEventListener('click', () => {
-            closeDirectMessageChat();
-        });
-
-        dmSendButton.addEventListener('click', () => {
-            const message = dmMessageInput.value.trim();
+        dmForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = dmInput.value.trim();
             if (message && activeDMRecipient) {
                 socket.emit('send_private_message', { recipient: activeDMRecipient, message: message });
-                appendDMMessage(myUsername, message, true);
-                // Store in history
-                if (!privateMessageHistory[activeDMRecipient]) {
-                    privateMessageHistory[activeDMRecipient] = [];
-                }
+                if (!privateMessageHistory[activeDMRecipient]) { privateMessageHistory[activeDMRecipient] = []; }
                 privateMessageHistory[activeDMRecipient].push({ sender: myUsername, message: message, is_me: true });
-                dmMessageInput.value = '';
+                appendMessage(myUsername, message, false, true, true);
+                dmInput.value = '';
             }
         });
-
-        dmMessageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                dmSendButton.click();
-            }
+        
+        autoCallToggle.addEventListener('change', (e) => {
+            isAutoCallEnabled = e.target.checked;
+            socket.emit('toggle_auto_call', { isEnabled: isAutoCallEnabled });
+            showSystemMessage(`Auto Call is now ${isAutoCallEnabled ? 'enabled' : 'disabled'}.`);
         });
-
-        // NEW: Function to open/display the DM chat for a specific user
+        
         function openDirectMessageChat(username) {
             activeDMRecipient = username;
             dmRecipientName.textContent = `Direct Message with: ${username}`;
-            dmMessagesDiv.innerHTML = ''; // Clear previous messages
-
-            // Load history for this user if available
+            dmMessagesDiv.innerHTML = '';
+            
             if (privateMessageHistory[username]) {
                 privateMessageHistory[username].forEach(msg => {
-                    appendDMMessage(msg.sender, msg.message, msg.is_me);
+                    const isMine = msg.sender === myUsername;
+                    appendMessage(msg.sender, msg.message, false, isMine, true);
                 });
             }
-            dmContainer.classList.add('active'); // Show the DM container
-            dmMessagesDiv.scrollTop = dmMessagesDiv.scrollHeight; // Scroll to bottom
-            dmMessageInput.focus();
+            showModal(dmModal);
+            dmMessagesDiv.scrollTop = dmMessagesDiv.scrollHeight;
+            dmInput.focus();
         }
-
-        // NEW: Function to close/hide the DM chat
-        function closeDirectMessageChat() {
-            activeDMRecipient = null;
-            dmContainer.classList.remove('active'); // Hide the DM container
-            dmMessagesDiv.innerHTML = ''; // Clear messages
-        }
-
+        
     </script>
 </body>
 </html>
+
+
+
